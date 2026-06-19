@@ -6,7 +6,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'] });
   app.enableCors();
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  Logger.log(`UptimeBot running on http://localhost:${port}`, 'Bootstrap');
+  await app.listen(port, '0.0.0.0');
+  Logger.log(`UptimeBot running on http://0.0.0.0:${port}`, 'Bootstrap');
 }
 bootstrap();

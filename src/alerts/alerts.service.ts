@@ -19,6 +19,7 @@ export class AlertsService {
         user: this.config.get('SMTP_USER'),
         pass: this.config.get('SMTP_PASS'),
       },
+      tls: { rejectUnauthorized: false },
     });
   }
 

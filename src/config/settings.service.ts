@@ -82,7 +82,7 @@ export class SettingsService {
     const to = testTo?.trim() || fallbackTo.split(',')[0].trim();
 
     try {
-      const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+      const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass }, tls: { rejectUnauthorized: false } });
       await transporter.verify();
       await transporter.sendMail({
         from: settings.smtpFrom || env['SMTP_FROM'] || user,
