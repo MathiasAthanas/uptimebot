@@ -18,7 +18,7 @@ import { AuthModule } from './auth/auth.module';
     EventEmitterModule.forRoot(),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
-      exclude: ['/api/(.*)'],
+      exclude: ['/api/*path'],
     }),
     AuthModule,
     DatabaseModule,
