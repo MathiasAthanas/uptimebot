@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UptimeBot — Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io@4.7.2/client-dist/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">UptimeBot</span>
+        <span class="brand-sub">Mission Control</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">MONITORING</div>
+    <nav class="nav">
+      <button class="nav-item active" data-page="overview">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Overview</span>
+        <span class="nav-badge" id="navBadgeDown" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-page="monitors">
+        <i data-lucide="activity"></i>
+        <span>Monitors</span>
+      </button>
+      <button class="nav-item" data-page="incidents">
+        <i data-lucide="alert-octagon"></i>
+        <span>Incidents</span>
+        <span class="nav-badge red" id="navBadgeIncidents" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-page="analytics">
+        <i data-lucide="bar-chart-3"></i>
+        <span>Analytics</span>
+      </button>
+      <button class="nav-item" data-page="groups">
+        <i data-lucide="layers-3"></i>
+        <span>Service Groups</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-section-label">SYSTEM</div>
+    <nav class="nav">
+      <button class="nav-item" data-page="settings">
+        <i data-lucide="settings-2"></i>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="connection-pill" id="connectionPill">
+        <i data-lucide="wifi-off" id="connIcon"></i>
+        <span id="connLabel">Connecting</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="page-breadcrumb">
+          <span class="breadcrumb-icon" id="topbarIcon"><i data-lucide="layout-dashboard"></i></span>
+          <span class="breadcrumb-title" id="topbarTitle">Overview</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <div class="system-health" id="systemHealthBar">
+          <span class="sh-dot up"></span>
+          <span class="sh-label" id="shLabel">All systems nominal</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="clock-block">
+          <div class="clock-time" id="clock">00:00:00</div>
+          <div class="clock-date" id="date">—</div>
+        </div>
+        <button class="topbar-refresh" id="globalRefresh" title="Refresh now">
+          <i data-lucide="refresh-cw"></i>
+        </button>
+        <div class="user-menu">
+          <button class="user-avatar-btn" id="userMenuBtn" title="Account">
+            <i data-lucide="user-circle-2"></i>
+            <span id="userDisplayName">admin</span>
+            <i data-lucide="chevron-down" style="width:12px;height:12px;opacity:0.6"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown" style="display:none">
+            <div class="ud-header">
+              <div class="ud-avatar"><i data-lucide="shield-check"></i></div>
+              <div>
+                <div class="ud-name" id="udName">admin</div>
+                <div class="ud-role">Administrator</div>
+              </div>
+            </div>
+            <div class="ud-divider"></div>
+            <button class="ud-item" id="logoutBtn">
+              <i data-lucide="log-out"></i>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+      <!-- ═══════════════════ OVERVIEW ═══════════════════ -->
+      <section class="page active" id="page-overview">
+
+        <!-- Status Banner -->
+        <div class="status-banner" id="statusBanner">
+          <div class="sb-indicator" id="sbIndicator">
+            <i data-lucide="check-circle-2" id="sbIcon"></i>
+          </div>
+          <div class="sb-body">
+            <div class="sb-title" id="sbTitle">All Systems Operational</div>
+            <div class="sb-sub" id="sbSub">All monitors reporting normal</div>
+          </div>
+          <div class="sb-stats">
+            <div class="sb-stat">
+              <span class="sb-num green" id="bmUp">—</span>
+              <span class="sb-lbl">Online</span>
+            </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+              <span class="sb-num red" id="bmDown">—</span>
+              <span class="sb-lbl">Down</span>
+            </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+              <span class="sb-num amber" id="bmDegraded">—</span>
+              <span class="sb-lbl">Degraded</span>
+            </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+              <span class="sb-num" id="bmTotal">—</span>
+              <span class="sb-lbl">Total</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Row -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Avg Uptime (24h)</span>
+              <div class="kpi-icon-wrap blue"><i data-lucide="trending-up"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiAvgUptime">—</div>
+            <div class="kpi-trend" id="kpiUptimeTrend"></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Avg Response Time</span>
+              <div class="kpi-icon-wrap cyan"><i data-lucide="zap"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiAvgResponse">—</div>
+            <div class="kpi-trend" id="kpiResponseTrend"></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Open Incidents</span>
+              <div class="kpi-icon-wrap red"><i data-lucide="alert-triangle"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiOpenIncidents">—</div>
+            <div class="kpi-trend" id="kpiIncidentTrend"></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Avg Resolution Time</span>
+              <div class="kpi-icon-wrap purple"><i data-lucide="timer"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiMTTR">—</div>
+            <div class="kpi-trend" id="kpiMttrTrend"></div>
+          </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="chart-row">
+          <div class="chart-card span2">
+            <div class="card-header">
+              <div class="card-title-group">
+                <i data-lucide="activity"></i>
+                <h3>System Status Overview</h3>
+              </div>
+              <span class="live-chip">Live</span>
+            </div>
+            <canvas id="chartStatusOverview" height="72"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <i data-lucide="pie-chart"></i>
+                <h3>Distribution</h3>
+              </div>
+            </div>
+            <div class="donut-wrap">
+              <canvas id="chartDonut"></canvas>
+              <div class="donut-center">
+                <span class="donut-pct" id="donutPct">—</span>
+                <span class="donut-sub">Online</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row 2 -->
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <i data-lucide="gauge"></i>
+                <h3>Response by Category</h3>
+              </div>
+            </div>
+            <canvas id="chartResponseBar" height="130"></canvas>
+          </div>
+          <div class="chart-card span2">
+            <div class="card-header">
+              <div class="card-title-group">
+                <i data-lucide="calendar-x-2"></i>
+                <h3>Incident Timeline — 30 Days</h3>
+              </div>
+            </div>
+            <canvas id="chartIncidentTimeline" height="130"></canvas>
+          </div>
+        </div>
+
+        <!-- Monitor Grid -->
+        <div class="section-header">
+          <div class="section-title-group">
+            <i data-lucide="server"></i>
+            <h2>Monitor Status</h2>
+          </div>
+          <div class="filter-bar" id="filterBar">
+            <button class="filter-chip active" data-filter="all">All</button>
+            <button class="filter-chip" data-filter="up">Online</button>
+            <button class="filter-chip" data-filter="down">Down</button>
+            <button class="filter-chip" data-filter="degraded">Degraded</button>
+          </div>
+        </div>
+        <div class="monitor-grid" id="monitorGrid"></div>
+
+        <!-- Incident Feed -->
+        <div class="section-header">
+          <div class="section-title-group">
+            <i data-lucide="siren"></i>
+            <h2>Recent Incidents</h2>
+          </div>
+          <button class="text-link" data-goto="incidents">View all</button>
+        </div>
+        <div class="incident-list" id="recentIncidentFeed"></div>
+
+      </section>
+
+      <!-- ═══════════════════ MONITORS ═══════════════════ -->
+      <section class="page" id="page-monitors">
+        <div class="page-toolbar">
+          <div class="search-wrap">
+            <i data-lucide="search"></i>
+            <input type="text" id="monitorSearch" placeholder="Search monitors, categories, endpoints…" />
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table" id="monitorsTable">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Endpoint</th>
+                <th>Uptime 24h</th>
+                <th>Uptime 7d</th>
+                <th>Response</th>
+                <th>Last Check</th>
+              </tr>
+            </thead>
+            <tbody id="monitorsTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="detail-panel" id="detailPanel" style="display:none">
+          <div class="detail-header">
+            <div class="detail-header-inner">
+              <div class="detail-title-block">
+                <h3 id="detailName">—</h3>
+                <span id="detailCategory" class="detail-cat">—</span>
+              </div>
+              <button class="icon-btn" id="closeDetail"><i data-lucide="x"></i></button>
+            </div>
+            <div class="detail-kpi-row" id="detailKpis"></div>
+          </div>
+          <div class="detail-body">
+            <div class="detail-chart-col">
+              <div class="chart-card">
+                <div class="card-header">
+                  <div class="card-title-group"><i data-lucide="line-chart"></i><h3>Response Time (24h)</h3></div>
+                </div>
+                <canvas id="chartDetailResponse" height="110"></canvas>
+              </div>
+            </div>
+            <div class="detail-side-col">
+              <div class="chart-card">
+                <div class="card-header">
+                  <div class="card-title-group"><i data-lucide="clock-4"></i><h3>Check History</h3></div>
+                </div>
+                <div class="history-bars" id="historyBars"></div>
+                <div class="history-legend">
+                  <span class="hl up">Up</span>
+                  <span class="hl down">Down</span>
+                  <span class="hl degraded">Degraded</span>
+                </div>
+              </div>
+              <div class="chart-card" style="margin-top:12px">
+                <div class="card-header">
+                  <div class="card-title-group"><i data-lucide="file-warning"></i><h3>Monitor Incidents</h3></div>
+                </div>
+                <div id="detailIncidents" style="padding:0 4px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════ INCIDENTS ═══════════════════ -->
+      <section class="page" id="page-incidents">
+        <div class="page-toolbar">
+          <div class="filter-bar">
+            <button class="filter-chip active" data-ifilter="all">All</button>
+            <button class="filter-chip" data-ifilter="open">Open</button>
+            <button class="filter-chip" data-ifilter="acknowledged">Acknowledged</button>
+            <button class="filter-chip" data-ifilter="resolved">Resolved</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="incidentStatsRow"></div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="card-header">
+              <div class="card-title-group"><i data-lucide="layers"></i><h3>By Severity</h3></div>
+            </div>
+            <canvas id="chartIncidentSeverity" height="130"></canvas>
+          </div>
+          <div class="chart-card span2">
+            <div class="card-header">
+              <div class="card-title-group"><i data-lucide="bar-chart-2"></i><h3>Daily Frequency (14 days)</h3></div>
+            </div>
+            <canvas id="chartIncidentFreq" height="130"></canvas>
+          </div>
+        </div>
+
+        <div class="incident-list" id="incidentsList"></div>
+      </section>
+
+      <!-- ═══════════════════ ANALYTICS ═══════════════════ -->
+      <section class="page" id="page-analytics">
+
+        <!-- Top KPI strip -->
+        <div class="kpi-grid" id="analyticsKpiRow"></div>
+
+        <!-- Analytics toolbar: tabs + time range -->
+        <div class="analytics-toolbar">
+          <div class="analytics-tabs" id="analyticsTabs">
+            <button class="atab active" data-tab="performance">
+              <i data-lucide="zap"></i> Performance
+            </button>
+            <button class="atab" data-tab="reliability">
+              <i data-lucide="shield-check"></i> Reliability
+            </button>
+            <button class="atab" data-tab="incidents">
+              <i data-lucide="alert-octagon"></i> Incidents
+            </button>
+          </div>
+          <div class="filter-bar">
+            <button class="filter-chip tr-btn active" data-range="24">24h</button>
+            <button class="filter-chip tr-btn" data-range="168">7d</button>
+            <button class="filter-chip tr-btn" data-range="720">30d</button>
+          </div>
+        </div>
+
+        <!-- ── Tab: Performance ── -->
+        <div class="atab-panel active" id="atab-performance">
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="activity"></i><h3>Response Time Trend</h3></div>
+                <span class="card-sub-label">Average response across all monitors</span>
+              </div>
+              <canvas id="chartResponseTrend" height="70"></canvas>
+            </div>
+          </div>
+          <div class="chart-row-two">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="clock"></i><h3>Slowest Monitors</h3></div>
+                <span class="card-sub-label">Average response time (ms)</span>
+              </div>
+              <canvas id="chartSlowest" height="180"></canvas>
+            </div>
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="git-branch"></i><h3>Response Percentiles</h3></div>
+                <span class="card-sub-label">P50 / P95 / P99 distribution</span>
+              </div>
+              <canvas id="chartPercentiles" height="180"></canvas>
+            </div>
+          </div>
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="grid-3x3"></i><h3>Response Time Heatmap</h3></div>
+                <span class="card-sub-label">Last 48 checks per monitor — green = fast, red = slow/down</span>
+              </div>
+              <div id="heatmapWrap"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Tab: Reliability ── -->
+        <div class="atab-panel" id="atab-reliability">
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="trending-up"></i><h3>Uptime Trend</h3></div>
+                <span class="card-sub-label">Overall system availability over time</span>
+              </div>
+              <canvas id="chartUptimeTrend" height="70"></canvas>
+            </div>
+          </div>
+          <div class="chart-row-two">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="radar"></i><h3>Uptime by Category</h3></div>
+                <span class="card-sub-label">Category health radar</span>
+              </div>
+              <canvas id="chartUptimeCategory" height="200"></canvas>
+            </div>
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="shield"></i><h3>SLA Compliance</h3></div>
+                <span class="card-sub-label">Monitors meeting 99.9% / 99.5% / 99% SLA</span>
+              </div>
+              <div id="slaComplianceWrap"></div>
+            </div>
+          </div>
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="bar-chart-2"></i><h3>Uptime per Monitor</h3></div>
+                <span class="card-sub-label">Individual monitor availability scores</span>
+              </div>
+              <canvas id="chartUptimePerMonitor" height="70"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Tab: Incidents ── -->
+        <div class="atab-panel" id="atab-incidents">
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="calendar"></i><h3>Incident Frequency</h3></div>
+                <span class="card-sub-label">Incidents per day — last 14 days</span>
+              </div>
+              <canvas id="chartIncidentFreqAnalytics" height="70"></canvas>
+            </div>
+          </div>
+          <div class="chart-row-three">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="alert-circle"></i><h3>Severity Breakdown</h3></div>
+              </div>
+              <div style="display:flex;justify-content:center;align-items:center;padding:8px 0">
+                <canvas id="chartSeverityPie" style="max-width:200px;max-height:200px"></canvas>
+              </div>
+            </div>
+            <div class="chart-card span2">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="timer"></i><h3>Mean Time to Recover (MTTR)</h3></div>
+                <span class="card-sub-label">Average minutes per monitor</span>
+              </div>
+              <canvas id="chartMTTR" height="180"></canvas>
+            </div>
+          </div>
+          <div class="chart-row-single">
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="list-checks"></i><h3>Recent Incident Log</h3></h3></div>
+              </div>
+              <div id="analyticsIncidentLog"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════ SERVICE GROUPS ═══════════════════ -->
+      <section class="page" id="page-groups">
+
+        <!-- Top stats row -->
+        <div class="kpi-grid" id="groupsKpiRow"></div>
+
+        <!-- Group cards -->
+        <div class="section-header">
+          <div class="section-title-group">
+            <i data-lucide="layers-3"></i>
+            <h2>All Service Groups</h2>
+          </div>
+          <div class="search-wrap" style="width:260px">
+            <i data-lucide="search"></i>
+            <input type="text" id="groupSearch" placeholder="Filter groups…" />
+          </div>
+        </div>
+
+        <div class="groups-grid" id="groupsGrid"></div>
+
+        <!-- Group detail panel -->
+        <div class="group-detail-panel" id="groupDetailPanel" style="display:none">
+          <div class="group-detail-header" id="groupDetailHeader">
+            <div class="gdh-left">
+              <div class="gdh-domain-badge" id="gdDomainBadge"></div>
+              <div>
+                <h2 class="gdh-title" id="gdTitle">—</h2>
+                <span class="gdh-sub" id="gdSub">—</span>
+              </div>
+            </div>
+            <div class="gdh-right">
+              <div class="gdh-kpis" id="gdKpis"></div>
+              <button class="icon-btn" id="closeGroupDetail"><i data-lucide="x"></i></button>
+            </div>
+          </div>
+
+          <!-- Group charts -->
+          <div class="group-charts-row">
+            <div class="chart-card span2">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="activity"></i><h3>Monitor Uptime — Group View</h3></div>
+              </div>
+              <canvas id="chartGroupUptime" height="90"></canvas>
+            </div>
+            <div class="chart-card">
+              <div class="card-header">
+                <div class="card-title-group"><i data-lucide="pie-chart"></i><h3>Status Distribution</h3></div>
+              </div>
+              <div class="donut-wrap" style="max-width:180px">
+                <canvas id="chartGroupDonut"></canvas>
+                <div class="donut-center">
+                  <span class="donut-pct" id="gdDonutPct">—</span>
+                  <span class="donut-sub">Online</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Monitor table inside group -->
+          <div class="group-detail-table-wrap">
+            <div class="group-detail-table-header">
+              <div class="section-title-group">
+                <i data-lucide="server"></i>
+                <h3>Monitors in this group</h3>
+              </div>
+            </div>
+            <table class="data-table" style="border-radius:0;border:none">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Endpoint</th>
+                  <th>Uptime 24h</th>
+                  <th>Uptime 7d</th>
+                  <th>Response</th>
+                  <th>Last Check</th>
+                </tr>
+              </thead>
+              <tbody id="groupDetailMonitors"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════ SETTINGS ═══════════════════ -->
+      <section class="page" id="page-settings">
+        <div class="settings-layout">
+
+          <!-- Monitor Management -->
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <div class="settings-panel-title-group">
+                <i data-lucide="server"></i>
+                <div>
+                  <div class="settings-panel-title">Monitors</div>
+                  <div class="settings-panel-sub">Manage all monitored endpoints</div>
+                </div>
+              </div>
+              <button class="btn-primary" id="addMonitorBtn">
+                <i data-lucide="plus"></i> Add Monitor
+              </button>
+            </div>
+            <div id="settingsMonitorList"></div>
+          </div>
+
+          <!-- Email Config -->
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <div class="settings-panel-title-group">
+                <i data-lucide="mail"></i>
+                <div>
+                  <div class="settings-panel-title">Email / SMTP</div>
+                  <div class="settings-panel-sub">Alert notification delivery</div>
+                </div>
+              </div>
+              <div class="smtp-status-wrap">
+                <span class="smtp-dot" id="smtpStatusDot"></span>
+                <span class="smtp-status-label" id="smtpStatusLabel">Unchecked</span>
+              </div>
+            </div>
+
+            <form id="emailSettingsForm" class="settings-form" autocomplete="off">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>SMTP Host</label>
+                  <div class="input-wrap">
+                    <i data-lucide="server" class="input-icon"></i>
+                    <input type="text" name="smtpHost" placeholder="smtp.gmail.com" />
+                  </div>
+                </div>
+                <div class="form-group narrow">
+                  <label>Port</label>
+                  <input type="number" name="smtpPort" placeholder="587" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Username</label>
+                <div class="input-wrap">
+                  <i data-lucide="user" class="input-icon"></i>
+                  <input type="email" name="smtpUser" placeholder="alerts@yourcompany.com" autocomplete="off" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <div class="input-wrap">
+                  <i data-lucide="lock" class="input-icon"></i>
+                  <input type="password" name="smtpPass" id="smtpPassInput" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+                  <button type="button" class="input-action" id="toggleSmtpPass">
+                    <i data-lucide="eye" id="smtpPassEyeIcon"></i>
+                  </button>
+                </div>
+                <span class="field-hint" id="smtpPassHint"></span>
+              </div>
+              <div class="form-group">
+                <label>From Address</label>
+                <div class="input-wrap">
+                  <i data-lucide="send" class="input-icon"></i>
+                  <input type="text" name="smtpFrom" placeholder="UptimeBot &lt;alerts@yourcompany.com&gt;" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Default Alert Recipients</label>
+                <div class="input-wrap">
+                  <i data-lucide="users" class="input-icon"></i>
+                  <input type="text" name="defaultAlertEmails" placeholder="ops@co.com, cto@co.com" />
+                </div>
+                <span class="field-hint">Comma-separated. Copied on every alert across all monitors.</span>
+              </div>
+              <div class="form-group">
+                <label class="toggle-label">
+                  <div class="toggle-switch">
+                    <input type="checkbox" name="smtpSecure" id="smtpSecureCheck" />
+                    <span class="toggle-track"></span>
+                  </div>
+                  Use TLS / SSL (port 465)
+                </label>
+              </div>
+
+              <div class="form-divider"><span>Test Delivery</span></div>
+              <div class="form-group">
+                <label>Send Test Email To</label>
+                <div class="input-wrap">
+                  <i data-lucide="send" class="input-icon"></i>
+                  <input type="email" id="testEmailTo" placeholder="athanas@mathy.com" value="athanas@mathy.com" />
+                </div>
+                <span class="field-hint">Leave blank to use the Default Alert Email address above.</span>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" class="btn-secondary" id="testEmailBtn">
+                  <i data-lucide="send"></i> Send Test Email
+                </button>
+                <button type="submit" class="btn-primary">
+                  <i data-lucide="save"></i> Save Settings
+                </button>
+              </div>
+              <div class="form-feedback" id="emailFeedback"></div>
+            </form>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ═══════ MONITOR FORM MODAL ═══════ -->
+  <div class="modal-backdrop" id="monitorModal" style="display:none">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <div class="modal-icon-wrap"><i data-lucide="server"></i></div>
+          <div>
+            <div class="modal-title" id="monitorModalTitle">Add Monitor</div>
+            <div class="modal-sub">Configure endpoint and alert settings</div>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeMonitorModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="monitorForm" class="settings-form" autocomplete="off">
+          <input type="hidden" name="id" id="monitorFormId" />
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Display Name <span class="req">*</span></label>
+              <div class="input-wrap">
+                <i data-lucide="tag" class="input-icon"></i>
+                <input type="text" name="name" id="mfName" placeholder="Payment API" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <div class="input-wrap">
+                <i data-lucide="folder" class="input-icon"></i>
+                <input type="text" name="category" id="mfCategory" placeholder="Core Infrastructure" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Monitor Type <span class="req">*</span></label>
+              <div class="select-wrap">
+                <select name="type" id="mfType">
+                  <option value="http">HTTP / HTTPS</option>
+                  <option value="tcp">TCP Port</option>
+                </select>
+                <i data-lucide="chevron-down" class="select-arrow"></i>
+              </div>
+            </div>
+            <div class="form-group" id="mfMethodGroup">
+              <label>HTTP Method</label>
+              <div class="select-wrap">
+                <select name="method" id="mfMethod">
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="HEAD">HEAD</option>
+                </select>
+                <i data-lucide="chevron-down" class="select-arrow"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" id="mfUrlGroup">
+            <label>URL <span class="req">*</span></label>
+            <div class="input-wrap">
+              <i data-lucide="globe" class="input-icon"></i>
+              <input type="url" name="url" id="mfUrl" placeholder="https://api.example.com/health" />
+            </div>
+          </div>
+
+          <div class="form-row" id="mfTcpGroup" style="display:none">
+            <div class="form-group">
+              <label>Host <span class="req">*</span></label>
+              <div class="input-wrap">
+                <i data-lucide="server" class="input-icon"></i>
+                <input type="text" name="host" id="mfHost" placeholder="db.example.com" />
+              </div>
+            </div>
+            <div class="form-group narrow">
+              <label>Port <span class="req">*</span></label>
+              <input type="number" name="port" id="mfPort" placeholder="5432" />
+            </div>
+          </div>
+
+          <div class="form-divider"><span>Check Parameters</span></div>
+
+          <div class="form-row three-col">
+            <div class="form-group">
+              <label>Expected Status</label>
+              <input type="number" name="expectedStatus" id="mfStatus" placeholder="200" value="200" />
+            </div>
+            <div class="form-group">
+              <label>Interval (seconds)</label>
+              <input type="number" name="intervalSeconds" id="mfInterval" placeholder="60" value="60" />
+            </div>
+            <div class="form-group">
+              <label>Timeout (ms)</label>
+              <input type="number" name="timeoutMs" id="mfTimeout" placeholder="10000" value="10000" />
+            </div>
+          </div>
+
+          <div class="form-divider" id="mfPayloadDivider" style="display:none"><span>Request Payload</span></div>
+
+          <div id="mfPayloadFields" style="display:none">
+            <div class="form-group">
+              <label>Request Headers <span class="field-hint" style="display:inline;margin-left:4px;">(JSON)</span></label>
+              <textarea name="requestHeaders" id="mfRequestHeaders" rows="3" placeholder='{"Authorization": "Bearer token", "X-Custom-Header": "value"}' style="font-family:var(--font-mono);font-size:12px;resize:vertical;"></textarea>
+              <span class="field-hint">Optional. Add any custom headers as a JSON object.</span>
+            </div>
+            <div class="form-group">
+              <label>Request Body <span class="field-hint" style="display:inline;margin-left:4px;">(JSON)</span></label>
+              <textarea name="requestBody" id="mfRequestBody" rows="4" placeholder='{"email": "admin@example.com", "password": "secret"}' style="font-family:var(--font-mono);font-size:12px;resize:vertical;"></textarea>
+              <span class="field-hint">Optional. Sent as JSON when method is POST / PUT / PATCH.</span>
+            </div>
+          </div>
+
+          <div class="form-divider"><span>Service Group</span></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Group Name</label>
+              <div class="input-wrap">
+                <i data-lucide="layers-3" class="input-icon"></i>
+                <input type="text" name="group" id="mfGroup" placeholder="Serengetibytes, NexorDigital..." />
+              </div>
+              <span class="field-hint">Organizes monitors under a named service group.</span>
+            </div>
+            <div class="form-group">
+              <label>Domain</label>
+              <div class="input-wrap">
+                <i data-lucide="globe" class="input-icon"></i>
+                <input type="text" name="groupDomain" id="mfGroupDomain" placeholder="serengetibytes.com" />
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Group Accent Color</label>
+              <div class="input-wrap" style="align-items:center;gap:8px;">
+                <i data-lucide="palette" class="input-icon"></i>
+                <input type="text" name="groupColor" id="mfGroupColor" placeholder="#3b82f6" />
+                <input type="color" id="mfGroupColorPicker" value="#3b82f6" style="width:32px;height:32px;padding:2px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-divider"><span>Notifications</span></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Alert Recipients</label>
+              <div class="input-wrap">
+                <i data-lucide="mail" class="input-icon"></i>
+                <input type="text" name="alertEmails" id="mfEmails" placeholder="devops@co.com, cto@co.com" />
+              </div>
+              <span class="field-hint">Comma-separated. Use "critical" tag to escalate severity.</span>
+            </div>
+            <div class="form-group">
+              <label>Tags</label>
+              <div class="input-wrap">
+                <i data-lucide="tag" class="input-icon"></i>
+                <input type="text" name="tags" id="mfTags" placeholder="critical, api, frontend" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="toggle-label">
+              <div class="toggle-switch">
+                <input type="checkbox" name="enabled" id="mfEnabled" checked />
+                <span class="toggle-track"></span>
+              </div>
+              Monitor active
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="cancelMonitorBtn">Cancel</button>
+        <button type="button" class="btn-primary" id="saveMonitorBtn">
+          <i data-lucide="save"></i> Save Monitor
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DELETE CONFIRM MODAL ═══════ -->
+  <div class="modal-backdrop" id="deleteModal" style="display:none">
+    <div class="modal modal-sm">
+      <div class="modal-header danger">
+        <div class="modal-header-title">
+          <div class="modal-icon-wrap red"><i data-lucide="trash-2"></i></div>
+          <div>
+            <div class="modal-title">Delete Monitor</div>
+            <div class="modal-sub" id="deleteModalSub">This cannot be undone.</div>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeDeleteModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding:20px 24px">
+        <p class="modal-confirm-text">All check history and incidents for this monitor will be permanently removed.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="cancelDeleteBtn">Cancel</button>
+        <button type="button" class="btn-danger" id="confirmDeleteBtn">
+          <i data-lucide="trash-2"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ INCIDENT ALERT MODAL ═══════ -->
+  <div class="modal-backdrop" id="incidentModal" style="display:none">
+    <div class="modal modal-sm">
+      <div class="modal-header danger">
+        <div class="modal-header-title">
+          <div class="modal-icon-wrap red pulse-ring"><i data-lucide="alert-octagon"></i></div>
+          <div>
+            <div class="modal-title">Incident Detected</div>
+            <div class="modal-sub" id="modalMonitorName">—</div>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding:20px 24px">
+        <div id="modalBody"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalCloseBtn">Dismiss</button>
+        <button type="button" class="btn-amber" id="modalAckBtn">
+          <i data-lucide="check"></i> Acknowledge
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
